@@ -1,0 +1,28 @@
+[project]
+name = "policy-reviewer-agent"
+version = "0.1.0"
+description = "Policy Reviewer Agent — automated policy ingestion, review and feedback pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3>=1.40.44",
+    "python-dotenv>=1.1.1",
+]
+
+
+[project.scripts]
+# API / microservices
+policy-api = "policy_reviewer_agent.api:run_server"
+policy-worker = "policy_reviewer_agent.worker:main"
+policy-ingest = "policy_reviewer_agent.ingest:main"
+
+# CLI / app
+policy-cli = "policy_reviewer_agent.cli:main"
+policy-app = "policy_reviewer_agent.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/policy_reviewer_agent"]

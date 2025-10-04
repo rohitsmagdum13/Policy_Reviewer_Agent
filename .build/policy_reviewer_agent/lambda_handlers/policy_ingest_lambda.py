@@ -12,6 +12,10 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any, Dict
+from urllib.parse import unquote_plus
+
+import boto3
+from botocore.exceptions import ClientError
 
 from ..core.logging_config import setup_logging
 from ..core.settings import Settings
@@ -22,12 +26,16 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
+
+
 def _extract_s3_key(event: Dict[str, Any]) -> str:
     """
     Extract the S3 object key from the event. Raises KeyError if malformed.
     """
     record = event["Records"][0]
-    return record["s3"]["object"]["key"]
+    raw_key = record["s3"]["object"]["key"]
+    # S3 keys are URL-encoded in events; decode them.
+    return unquote_plus(raw_key)
 
 
 def handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
@@ -47,6 +55,28 @@ def handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     # Here we default to text detection; toggle to analysis by naming convention if desired.
     try:
         object_key = _extract_s3_key(event)
+        import boto3
+        from botocore.exceptions import ClientError
+
+        s3_bucket = cfg.s3_bucket
+        try:
+            boto3.client("s3").head_object(Bucket=s3_bucket, Key=object_key)
+            logger.info(
+                "Preflight HEAD OK",
+                extra={"stage": "ingest", "bucket": s3_bucket, "key": object_key, "status": "OK"},
+            )
+        except ClientError as ce:
+            logger.error(
+                "Preflight HEAD failed",
+                extra={"stage": "ingest", "bucket": s3_bucket, "key": object_key},
+                exc_info=True,
+            )
+            return {
+                "error": "s3_object_not_found",
+                "bucket": s3_bucket,
+                "key": object_key,
+                "detail": str(ce),
+            }
         result = pipeline.validate_and_start(object_key, analysis=False)
         logger.info(
             "Ingest started",
